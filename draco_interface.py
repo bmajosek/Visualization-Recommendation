@@ -47,6 +47,7 @@ class VisualizeRecommendation:
 
         spec = {**schema, **vega_lite_spec}
         asp_facts = dict_to_facts(spec)
+        violations = self.draco.get_violations(asp_facts)
         model = next(run_clingo(asp_facts))
         answer_set = model.answer_set
         spec = answer_set_to_dict(answer_set)
@@ -55,7 +56,7 @@ class VisualizeRecommendation:
             display(chart)
         
         cost = self.llm.evaluate_chart(columns, spec)
-        return cost
+        return cost, violations, model.cost
     
 
     def evaluate_all_column_pairs(self, df: pd.DataFrame):
@@ -63,18 +64,29 @@ class VisualizeRecommendation:
         Evaluates all possible column pairs in the DataFrame and identifies the best pair for visualization.
         """
         columns = df.columns
-        best_cost = float('-inf')
-        best_pair = None
+        best_evaluation_score = float('-inf')
+        best_model_cost = float('inf')
+        best_violations = float('inf')
+
+        best_evaluation_pair = None
+        best_cost_pair = None
 
         for i in range(len(columns)):
             for j in range(i + 1, len(columns)):
-                evaluation = self.recommend_chart(df, {"first_column": columns[i], "second_column": columns[j]}, False)
-                print(f"Columns: {columns[i]}, {columns[j]} - Cost: {evaluation['score']}")
-                
-                if evaluation['score'] and evaluation['score'] > best_cost:
-                    best_cost = evaluation['score']
-                    best_pair = (columns[i], columns[j])
+                evaluation, violations, model_cost = self.recommend_chart(df, {"first_column": columns[i], "second_column": columns[j]}, False)
+                print(f"Columns: {columns[i]}, {columns[j]} - Evaluation Score: {evaluation['score']} - Model Cost: {model_cost} - Violations: {violations}")
 
-        print(f"Best column pair: {best_pair} with cost: {best_cost}")
-        return best_pair, best_cost
+                if evaluation['score'] > best_evaluation_score:
+                    best_evaluation_score = evaluation['score']
+                    best_evaluation_pair = (columns[i], columns[j])
+
+                if model_cost and (sum(model_cost) < best_model_cost or (sum(model_cost) == best_model_cost and len(violations) < best_violations)):
+                    best_model_cost = sum(model_cost)
+                    best_violations = len(violations)
+                    best_cost_pair = (columns[i], columns[j])
+
+        print(f"Best column pair by evaluation score: {best_evaluation_pair} with score: {best_evaluation_score}")
+        print(f"Best column pair by model cost and violations: {best_cost_pair} with cost: {best_model_cost} and violations: {best_violations}")
+        
+        return best_evaluation_pair, best_evaluation_score, best_cost_pair, best_model_cost, best_violations
 

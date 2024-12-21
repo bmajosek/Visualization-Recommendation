@@ -23,5 +23,5 @@ class RecommendationPipeline:
         """
         Evaluate all combinations.
         """
-        best_pair, best_cost = self.visualization.evaluate_all_column_pairs(df)
-        return best_pair, best_cost
+        best_pair, best_cost, best_cost_pair, best_model_cost, best_violations = self.visualization.evaluate_all_column_pairs(df)
+        return best_pair, best_cost, best_cost_pair, best_model_cost, best_violations
